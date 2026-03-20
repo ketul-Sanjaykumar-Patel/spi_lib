@@ -1,0 +1,69 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    name: ${{ matrix.compiler }} / ${{ matrix.std }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        std: [c11, c99]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang
+        if: matrix.compiler == 'clang'
+        run: sudo apt-get install -y clang
+      - name: Build
+        run: |
+          ${{ matrix.compiler }} \
+            -std=${{ matrix.std }} \
+            -Wall -Wextra -Wpedantic -Werror \
+            -I include -I drivers \
+            src/spi.c drivers/spi_devices.c examples/example_all_devices.c \
+            -o demo -lm
+      - name: Smoke run
+        run: ./demo || true
+
+  build-arm:
+    name: ARM cross-compile (arm-none-eabi)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM toolchain
+        run: sudo apt-get install -y gcc-arm-none-eabi
+      - name: Cross-compile
+        run: |
+          arm-none-eabi-gcc -std=c11 -Wall -Wextra \
+            -mcpu=cortex-m4 -mthumb -ffreestanding -nostdlib \
+            -I include -I drivers \
+            -c src/spi.c -o spi.o
+          arm-none-eabi-gcc -std=c11 -Wall -Wextra \
+            -mcpu=cortex-m4 -mthumb -ffreestanding -nostdlib \
+            -I include -I drivers \
+            -c drivers/spi_devices.c -o spi_devices.o
+      - name: Symbol sizes
+        run: arm-none-eabi-size spi.o spi_devices.o
+
+  cppcheck:
+    name: Static analysis (cppcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get install -y cppcheck
+      - name: Run cppcheck
+        run: |
+          cppcheck \
+            --std=c11 \
+            --enable=warning,performance,portability \
+            --error-exitcode=1 \
+            --suppress=missingIncludeSystem \
+            -I include -I drivers \
+            src/ drivers/

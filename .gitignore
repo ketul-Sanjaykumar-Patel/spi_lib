@@ -1,0 +1,13 @@
+build/
+*.o
+*.a
+*.elf
+*.hex
+*.bin
+*.map
+demo
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
